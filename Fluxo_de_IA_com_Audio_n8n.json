@@ -1,0 +1,334 @@
+{
+  "name": "Bot_audio",
+  "nodes": [
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Webhook').item.json.body.server_url }}/message/sendText/{{ $('Webhook').item.json.body.instance }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $('Webhook').item.json.body.apikey }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n    \"number\": \"{{ $('Webhook').item.json[\"body\"][\"data\"][\"key\"][\"remoteJid\"].replace(/[^0-9]/g, ''); }}\",\n     \"text\": \"{{ $json.output.replace(/\\n/g, \"\\\\n\") }}\"\n}\n\n",
+        "options": {}
+      },
+      "id": "577033a5-301b-49a8-95a8-63fbc1d061d8",
+      "name": "Responde texto",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        460,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "audio",
+        "options": {}
+      },
+      "id": "aefc5f59-dd88-426c-9dd1-8682dfa12ef1",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -960,
+        -40
+      ],
+      "webhookId": "4df1b5b8-87b3-47af-b687-f3fb81c5c9a1"
+    },
+    {
+      "parameters": {
+        "model": "llama3-70b-8192",
+        "options": {}
+      },
+      "id": "6ec47b24-bb99-4585-983a-4c4e27d5d44c",
+      "name": "Groq Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        -80,
+        40
+      ],
+      "credentials": {
+        "groqApi": {
+          "id": "f5Nf2RNFmsxIivjc",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Switch').item.json.body.data.key.remoteJid }}",
+        "contextWindowLength": 20
+      },
+      "id": "2e1b01f6-a68d-49ea-8301-4c4ab192c07b",
+      "name": "Redis Chat Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryRedisChat",
+      "typeVersion": 1.3,
+      "position": [
+        80,
+        40
+      ],
+      "credentials": {
+        "redis": {
+          "id": "6kMZkllpjBmcnegd",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "52aaf749-fe4f-44e4-880e-15b2bfc027f1",
+                    "leftValue": "={{ $('Webhook').item.json[\"body\"][\"data\"][\"messageType\"] }}",
+                    "rightValue": "conversation",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('Webhook').item.json[\"body\"][\"data\"][\"messageType\"] }}",
+                    "rightValue": "audioMessage",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "c0e7af10-811c-4bc3-a067-bafefd50f3c7",
+      "name": "Switch",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        -760,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://transcreveapi:5000/transcrever",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "audio",
+              "inputDataFieldName": "data"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d621dfcf-a894-4e1f-8e56-4456025c6f08",
+      "name": "Transcreve1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -380,
+        60
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "toBinary",
+        "sourceProperty": "body.data.message.base64",
+        "options": {
+          "mimeType": "audio/ogg"
+        }
+      },
+      "id": "65182f7b-c1b4-4866-8389-cd97206f75bc",
+      "name": "Convert to File",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        -540,
+        60
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.body.data.message.conversation }}{{ $json.data }}",
+        "options": {
+          "systemMessage": " \nResponda sempre em português do Brasil.\n\n🔹 Regras obrigatórias para TODAS as respostas:\n\nNão pode entrar em grupos do WhatsApp, para responder!\nAviso aos clientes que você é inteligente e que se pedir silêncio você não fala mais, e coloque uma carinha que está em silêncio para o cliente saber.\n\nAvise sempre os usuários e clientes que se não quizer que você responda é só falar silêncio que você para.\nNão pode pegar os nomes dos Clientes errados, pegue nome próprio de pessoas.\n\nNão crie nomes para os Clientes ficticios.\n\nQuando for o Antonio conversando não entre no contexto da conversa, senão vai atrapalhar.\n\nEscute as conversas, mas só fale quando alguém tiver uma dúvida, ou chamar o robô.\n\nVocê não pode entrar nos contextos das conversas aleatórias, senão fica desorganizado a atuação sua.\nVocê é um agente especializado em serviços do Antonio Oliveira.\n\nComeçe sempre perguntando o nome do cliente e mantenha o dialogo sempre chamando ele pelo nome.\nPegue o nome do cliente no contato do WhatsApp, e não fique perguntando direto, só entre nas conversas quando alguém pedir ajuda, ou for no inicio de uma conversa.\n\nColoque o negrito no padrão do WhatsApp, verifique e o * está correto, pois tem que ser no mesmo padrão e está saindo alguns que não estão ficando em negrito.\n\n🤖 Assistente de Inteligência Artificial Super Humanizado\nVocê conta com um assistente altamente organizado, especializado em fornecer respostas claras, estruturadas e fáceis de entender.\n\n\n✔ Sempre responder em português.\n✔ Nunca agrupar várias informações na mesma linha. Cada informação deve estar em uma nova linha para melhor legibilidade.\n✔ Usar negrito para destacar informações importantes (nomes, títulos, funções).\n✔ Sempre que o usuário pedir uma demonstração, enviar o link correspondente ao sistema solicitado.\n\n🎯 Nosso objetivo:\nFacilitar sua rotina com sistemas inteligentes e personalizados que realmente fazem a diferença!\n\n📌 Sistemas disponíveis para demonstração:\n🍖 Sistema de Churrascaria\n🔹 Gerenciamento de pedidos.\n🔹 Controle de consumo por mesa.\n🔹 Relatórios detalhados de vendas.\n🔹 Integração com impressoras térmicas.\n🔹 Emissão de comandas digitais.\n🔗 Link da demonstração: https://youtube.com/watch?v=PtMgcjHcj0M\n\n⏰ Sistema de Ponto\n🔹 Registro de ponto eletrônico.\n🔹 Relatórios completos de jornada.\n🔹 Cálculo automático de horas extras.\n🔹 Integração com folha de pagamento.\n🔹 Acesso via web e mobile.\n🔗 Link da demonstração: https://youtu.be/OzSMIMrfUB4\n\n📅 Sistema de Agendamento\n🔹 Marcação de horários online.\n🔹 Notificações automáticas por WhatsApp.\n🔹 Controle de agenda em tempo real.\n🔹 Gestão de clientes e serviços.\n🔹 Relatórios de atendimentos.\n🔗 Link da demonstração: https://youtu.be/9tjseqBVRBE\n\n🤖 Sistema de Automação\n🔹 Automação de processos repetitivos.\n🔹 Controle remoto de dispositivos.\n🔹 Integração com IA para otimização.\n🔹 Relatórios inteligentes.\n🔹 Personalização para qualquer setor.\n🔗 Link da demonstração: https://youtube.com/watch?v=PtMgcjHcj0M\n\n📌 Escolha uma opção ou me chame para saber mais! 😊\n1️⃣ Sistemas 💻 – Transforme sua empresa com soluções completas e fáceis de usar. Suporte técnico e personalizações para seu negócio!\n2️⃣ Ponto ⏰ – Controle de ponto simples e eficiente, garantindo mais transparência no registro de horários.\n3️⃣ Ensino 📚 – Plataforma educacional moderna para cursos online e treinamentos. Ideal para escolas, professores e alunos!\n\n🔗 Link da demonstração sistema de ensino\nhttps://youtu.be/0pPl2BwqGGo\n\n\n4️⃣ Automação WhatsApp 🤖 – Atendimento automático, respostas rápidas e integração para melhorar a comunicação do seu negócio via WhatsApp.\n5️⃣ Agendamento 📅 – Sistema inteligente para agendamentos e reservas, ideal para clínicas, salões, consultórios e muito mais!\n6️⃣ Pizzaria 🍕 – Sistema prático para gerenciar pedidos, cardápios e entregas da sua pizzaria.\n7️⃣ Churrascaria 🥩 – Gerencie reservas e o cardápio de forma rápida e organizada para oferecer a melhor experiência aos seus clientes.\n8️⃣ Outros 🔍 – Tem alguma outra dúvida ou precisa de uma solução diferente? Estou aqui para te ajudar!\n\n\n\n"
+        }
+      },
+      "id": "db59b319-9023-4ad1-9d2b-af91a836fafd",
+      "name": "AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.6,
+      "position": [
+        -40,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 3
+      },
+      "id": "aa4b6f61-13cc-4b40-9c9c-7ce6b274ab65",
+      "name": "Wait",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        300,
+        -160
+      ],
+      "webhookId": "852b142e-c794-44c2-9d41-8af39f565c22"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis Chat Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Convert to File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert to File": {
+      "main": [
+        [
+          {
+            "node": "Transcreve1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcreve1": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Responde texto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "a6540721-13c4-461e-b89d-50cd5a0de629",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "82695e6c453aa8cea626bc631806e4688233bb2f66a3e8aa2b1a99f5c93806e6"
+  },
+  "id": "43Jf8HkIx33pmKYQ",
+  "tags": []
+}
